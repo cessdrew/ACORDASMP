@@ -1,11 +1,15 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import {
   ArrowUpRight,
   Award,
   BriefcaseBusiness,
   CakeSlice,
+  CheckCircle,
+  ClipboardCheck,
   Flower2,
   GraduationCap,
+  Heart,
+  Headset,
   Mail,
   MapPin,
   Phone,
@@ -13,6 +17,9 @@ import {
   Sparkles,
   X,
 } from 'lucide-react';
+import ProjectCard from './components/ProjectCard';
+import SkillCard from './components/SkillCard';
+import { supabase } from './lib/supabaseClient';
 
 const experience = [
   {
@@ -97,8 +104,171 @@ const certificates = [
   'Professional Communication — Certiport Passer',
 ];
 
+const skills = [
+  {
+    title: 'Customer Support',
+    description: 'Helping people with care, clarity, and a focus on practical resolutions.',
+    icon: Headset,
+  },
+  {
+    title: 'Claims Review',
+    description: 'Reviewing claim details and eligibility with accuracy and attention.',
+    icon: ClipboardCheck,
+  },
+  {
+    title: 'Problem-solving',
+    description: 'Working through customer concerns and finding thoughtful next steps.',
+    icon: CheckCircle,
+  },
+  {
+    title: 'Professional Communication',
+    description: 'Communicating clearly and respectfully across customer interactions.',
+    icon: Heart,
+  },
+  {
+    title: 'Fiber Arts & Crochet',
+    description: 'Creating handmade work with patience, creativity, and care.',
+    icon: Flower2,
+  },
+  {
+    title: 'Service Management',
+    description: 'Building knowledge around service experiences and customer needs.',
+    icon: BriefcaseBusiness,
+  },
+];
+
+const fallbackProjects = [
+  {
+    id: 'fiber-art-store',
+    title: 'The Fiber Art Store',
+    category: 'Creative Business',
+    description:
+      'A part-time creative business where I make and share fiber-art pieces, combining craft with customer care.',
+    tools: 'Fiber art • Crochet • Small business',
+  },
+  {
+    id: 'customer-care',
+    title: 'Customer Care & Claim Resolution',
+    category: 'Professional Experience',
+    description:
+      'Supporting customers with billing questions and claims for damaged or lost products through careful review and clear communication.',
+    tools: 'Customer support • Claims review • Communication',
+  },
+  {
+    id: 'service-management',
+    title: 'Service Management Studies',
+    category: 'Academic Journey',
+    description:
+      'Developing an academic foundation in Information Technology with a major in the Service Management Program at LSPU.',
+    tools: 'BSIT • Service Management Program',
+  },
+];
+
 export default function App() {
   const [activeExperience, setActiveExperience] = useState(null);
+  const [projects, setProjects] = useState([]);
+  const [projectsLoading, setProjectsLoading] = useState(true);
+  const [projectsError, setProjectsError] = useState('');
+  const [contactForm, setContactForm] = useState({ name: '', email: '', message: '' });
+  const [contactErrors, setContactErrors] = useState({});
+  const [contactStatus, setContactStatus] = useState(null);
+  const [contactSubmitting, setContactSubmitting] = useState(false);
+
+  useEffect(() => {
+    let isMounted = true;
+
+    async function loadProjects() {
+      try {
+        const { data, error } = await supabase
+          .from('portfolio_items')
+          .select('*')
+          .order('created_at', { ascending: false });
+
+        if (!isMounted) return;
+
+        if (error) {
+          setProjectsError('Saved projects could not be loaded. Showing portfolio highlights instead.');
+          setProjects(fallbackProjects);
+        } else {
+          setProjects(data?.length ? data : fallbackProjects);
+        }
+      } catch {
+        if (isMounted) {
+          setProjectsError('Saved projects could not be loaded. Showing portfolio highlights instead.');
+          setProjects(fallbackProjects);
+        }
+      } finally {
+        if (isMounted) setProjectsLoading(false);
+      }
+    }
+
+    loadProjects();
+    return () => {
+      isMounted = false;
+    };
+  }, []);
+
+  function handleContactChange(event) {
+    const { name, value } = event.target;
+    setContactForm((current) => ({ ...current, [name]: value }));
+    setContactErrors((current) => ({ ...current, [name]: '' }));
+    setContactStatus(null);
+  }
+
+  async function handleContactSubmit(event) {
+    event.preventDefault();
+    const name = contactForm.name.trim();
+    const email = contactForm.email.trim();
+    const message = contactForm.message.trim();
+    const errors = {};
+
+    if (name.length < 2 || name.length > 100) {
+      errors.name = 'Please enter a name between 2 and 100 characters.';
+    }
+    if (email.length > 254 || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+      errors.email = 'Please enter a valid email address.';
+    }
+    if (message.length < 10 || message.length > 2000) {
+      errors.message = 'Your message must be between 10 and 2,000 characters.';
+    }
+
+    setContactErrors(errors);
+    setContactStatus(null);
+    if (Object.keys(errors).length > 0) return;
+
+    setContactSubmitting(true);
+    try {
+      const { error } = await supabase.from('contact_messages').insert({
+        name,
+        email,
+        message,
+      });
+
+      if (error) {
+        setContactStatus({
+          type: 'error',
+          message: `Your message could not be sent. ${error.message}`,
+        });
+        return;
+      }
+
+      setContactForm({ name: '', email: '', message: '' });
+      setContactErrors({});
+      setContactStatus({
+        type: 'success',
+        message: 'Thank you! Your message has been sent successfully.',
+      });
+    } catch (error) {
+      setContactStatus({
+        type: 'error',
+        message: error instanceof Error
+          ? `Your message could not be sent. ${error.message}`
+          : 'Your message could not be sent. Please try again.',
+      });
+    } finally {
+      setContactSubmitting(false);
+    }
+  }
 
   return (
     <div className="site-shell">
@@ -108,7 +278,9 @@ export default function App() {
           <span>PRINCESS ACORDA</span>
         </a>
         <nav className="nav-links" aria-label="Primary navigation">
+          <a href="#skills">Skills</a>
           <a href="#experience">Experience</a>
+          <a href="#projects">Projects</a>
           <a href="#education">Education</a>
           <a href="#about">About</a>
           <a className="nav-contact" href="#contact">
@@ -160,6 +332,16 @@ export default function App() {
           <article><BriefcaseBusiness size={22} /><div><span>Current role</span><strong>Investigation Associate II</strong></div></article>
           <article><GraduationCap size={22} /><div><span>Studying</span><strong>BSIT · Service Management Program</strong></div></article>
           <article><MapPin size={22} /><div><span>Based in</span><strong>Famy, Laguna</strong></div></article>
+        </section>
+
+        <section className="skills-section" id="skills">
+          <div className="section-heading">
+            <div><span className="section-kicker">What I bring</span><h2>Skills &amp; strengths</h2></div>
+            <p>A blend of service, communication, problem-solving, and creative skills built through work, study, and personal interests.</p>
+          </div>
+          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+            {skills.map((skill) => <SkillCard key={skill.title} {...skill} />)}
+          </div>
         </section>
 
         <section className="experience-section" id="experience">
@@ -215,6 +397,21 @@ export default function App() {
           </div>
         </section>
 
+        <section className="projects-section" id="projects">
+          <div className="section-heading">
+            <div><span className="section-kicker">Selected work</span><h2>Projects &amp; highlights</h2></div>
+            <p>Creative work, professional experience, and learning highlights from my journey.</p>
+          </div>
+          {projectsError && <p className="mb-4 rounded-xl border border-[#eadfe6] bg-white/80 px-4 py-3 text-sm text-[#8c5574]" role="status">{projectsError}</p>}
+          {projectsLoading ? (
+            <div className="loading-card">Loading portfolio highlights…</div>
+          ) : (
+            <div className="grid gap-5 md:grid-cols-2 lg:grid-cols-3">
+              {projects.map((project) => <ProjectCard key={project.id} project={project} />)}
+            </div>
+          )}
+        </section>
+
         <section className="recognition-section" id="recognition">
           <div className="recognition-heading">
             <div className="recognition-icon"><Award size={26} /></div>
@@ -263,18 +460,83 @@ export default function App() {
           <div className="contact-copy">
             <span className="section-kicker">Let&apos;s connect</span>
             <h2>Open to meaningful<br /><em>opportunities.</em></h2>
+            <p>Have a question or want to get in touch? Send me a message and I&apos;ll be happy to hear from you.</p>
           </div>
-          <div className="contact-options">
-            <a href="mailto:princessacorda143@gmail.com">
-              <span className="contact-icon"><Mail size={20} /></span>
-              <span><small>Email</small><strong>princessacorda143@gmail.com</strong></span>
-              <ArrowUpRight size={18} />
-            </a>
-            <a href="tel:+639562847313">
-              <span className="contact-icon"><Phone size={20} /></span>
-              <span><small>Phone</small><strong>09562847313</strong></span>
-              <ArrowUpRight size={18} />
-            </a>
+          <div className="contact-content">
+            <form className="contact-form" onSubmit={handleContactSubmit} noValidate>
+              <label className="contact-field" htmlFor="contact-name">
+                Your name
+                <input
+                  id="contact-name"
+                  name="name"
+                  type="text"
+                  autoComplete="name"
+                  maxLength={100}
+                  value={contactForm.name}
+                  onChange={handleContactChange}
+                  aria-invalid={Boolean(contactErrors.name)}
+                  aria-describedby={contactErrors.name ? 'contact-name-error' : undefined}
+                  required
+                />
+                {contactErrors.name && <span className="contact-field-error" id="contact-name-error">{contactErrors.name}</span>}
+              </label>
+
+              <label className="contact-field" htmlFor="contact-email">
+                Email address
+                <input
+                  id="contact-email"
+                  name="email"
+                  type="email"
+                  autoComplete="email"
+                  maxLength={254}
+                  value={contactForm.email}
+                  onChange={handleContactChange}
+                  aria-invalid={Boolean(contactErrors.email)}
+                  aria-describedby={contactErrors.email ? 'contact-email-error' : undefined}
+                  required
+                />
+                {contactErrors.email && <span className="contact-field-error" id="contact-email-error">{contactErrors.email}</span>}
+              </label>
+
+              <label className="contact-field" htmlFor="contact-message">
+                Message
+                <textarea
+                  id="contact-message"
+                  name="message"
+                  rows={4}
+                  maxLength={2000}
+                  value={contactForm.message}
+                  onChange={handleContactChange}
+                  aria-invalid={Boolean(contactErrors.message)}
+                  aria-describedby={contactErrors.message ? 'contact-message-error' : undefined}
+                  required
+                />
+                {contactErrors.message && <span className="contact-field-error" id="contact-message-error">{contactErrors.message}</span>}
+              </label>
+
+              <button className="primary-button contact-submit" type="submit" disabled={contactSubmitting}>
+                {contactSubmitting ? 'Sending…' : 'Send message'}
+                {!contactSubmitting && <ArrowUpRight size={16} />}
+              </button>
+              {contactStatus && (
+                <p className={`contact-feedback ${contactStatus.type}`} role="status" aria-live="polite">
+                  {contactStatus.message}
+                </p>
+              )}
+            </form>
+
+            <div className="contact-options">
+              <a href="mailto:princessacorda143@gmail.com">
+                <span className="contact-icon"><Mail size={20} /></span>
+                <span><small>Email</small><strong>princessacorda143@gmail.com</strong></span>
+                <ArrowUpRight size={18} />
+              </a>
+              <a href="tel:+639562847313">
+                <span className="contact-icon"><Phone size={20} /></span>
+                <span><small>Phone</small><strong>09562847313</strong></span>
+                <ArrowUpRight size={18} />
+              </a>
+            </div>
           </div>
         </section>
 
